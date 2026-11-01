@@ -11,15 +11,15 @@ const AUDIO_BASE_URL = 'https://cdn.example.com';
 
 Что меняется:
 
-- Плеер: `https://cd1.example.com/uploads/music/<папка>/<файл>?v=<версия>`.
-- Скачать: та же ссылка с `&dl=1`. Заголовок `Content-Disposition: attachment` ставит cd1.
-- Старые ссылки `/download.php?track=ID` отвечают 302 на cd1. Ссылки, которые уже разосланы, продолжают работать.
-- `?v=` — это хеш от даты загрузки и размера. После замены файла ссылка меняется, и cd1 не отдаст старую копию из кеша.
+- Плеер: `https://cdn.example.com/uploads/music/<папка>/<файл>?v=<версия>`.
+- Скачать: та же ссылка с `&dl=1`. Заголовок `Content-Disposition: attachment` ставит cdn.
+- Старые ссылки `/download.php?track=ID` отвечают 302 на cdn. Ссылки, которые уже разосланы, продолжают работать.
+- `?v=` — это хеш от даты загрузки и размера. После замены файла ссылка меняется, и cdn не отдаст старую копию из кеша.
 - Загрузка и удаление файлов, а также папки на диске остаются на основном сервере. В БД, как и раньше, хранится путь `/uploads/music/...`.
 
 ## 2. Nginx на cdn.example.com
 
-Нужен модуль `ngx_http_slice_module`, он есть в пакетах nginx для Ubuntu и Debian (проверка: `nginx -V 2>&1 | grep -o with-http_slice_module`). Файлы кешируются кусками по 8 МБ. Перемотка и докачка работают сразу, без ожидания, пока cd1 скачает весь FLAC целиком.
+Нужен модуль `ngx_http_slice_module`, он есть в пакетах nginx для Ubuntu и Debian (проверка: `nginx -V 2>&1 | grep -o with-http_slice_module`). Файлы кешируются кусками по 8 МБ. Перемотка и докачка работают сразу, без ожидания, пока cdn скачает весь FLAC целиком.
 
 ```nginx
 # http { ... }
@@ -97,19 +97,19 @@ install -d -o www-data -g www-data /var/cache/nginx/music
 nginx -t && systemctl reload nginx
 ```
 
-Типы `audio/flac`, `audio/wav`, `audio/mpeg` отдаёт основной сервер: на Apache через `uploads/music/.htaccess`, cd1 передаёт их дальше. Если `Content-Type` придёт `application/octet-stream`, добавьте на cd1 `types { audio/flac flac; audio/wav wav; audio/mpeg mp3; }` в location и `proxy_hide_header Content-Type;`.
+Типы `audio/flac`, `audio/wav`, `audio/mpeg` отдаёт основной сервер: на Apache через `uploads/music/.htaccess`, cdn передаёт их дальше. Если `Content-Type` придёт `application/octet-stream`, добавьте на cdn `types { audio/flac flac; audio/wav wav; audio/mpeg mp3; }` в location и `proxy_hide_header Content-Type;`.
 
 ## 3. DNS и сертификат
 
 - Запись A или CNAME для `cdn.example.com`.
 - `certbot --nginx -d cdn.example.com` (или `certonly --webroot`).
 
-## 4. Необязательно: пускать к /uploads/music/ только cd1
+## 4. Необязательно: пускать к /uploads/music/ только cdn
 
-Если основной сервер должен отдавать музыку только cd1 (Apache 2.4, в `public/uploads/music/.htaccess`):
+Если основной сервер должен отдавать музыку только cdn (Apache 2.4, в `public/uploads/music/.htaccess`):
 
 ```apache
-Require ip <IP cd1>
+Require ip <IP cdn>
 ```
 
 Админке это не мешает: загрузка идёт через `/admin/track_audio.php`, а не через эту папку.
@@ -127,7 +127,7 @@ curl -sI "$U&dl=1" | grep -i content-disposition                                
 
 ## Что нужно учитывать
 
-- Если удалить файл в админке, его копия на cd1 остаётся в кеше до истечения `inactive` (60 дней), а старая ссылка продолжит работать. Чтобы убрать сразу, очистите кеш: `rm -rf /var/cache/nginx/music/*` (cd1 заново скачает файлы при следующих запросах). Можно и точечно, через `proxy_cache_purge` из модуля ngx_cache_purge.
+- Если удалить файл в админке, его копия на cdn остаётся в кеше до истечения `inactive` (60 дней), а старая ссылка продолжит работать. Чтобы убрать сразу, очистите кеш: `rm -rf /var/cache/nginx/music/*` (cdn заново скачает файлы при следующих запросах). Можно и точечно, через `proxy_cache_purge` из модуля ngx_cache_purge.
 - Если убрать `AUDIO_BASE_URL` из конфига, всё снова будет отдаваться с site.example.com, менять код не нужно.
 
 ## Сервер по умолчанию
