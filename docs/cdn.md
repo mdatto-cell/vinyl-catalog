@@ -1,23 +1,23 @@
-# Раздача оцифровок через cd1.beebzzz.ru
+# Раздача оцифровок через cdn.example.com
 
-Страницы и админка остаются на catalog.beebzzz.ru. Плеер и кнопка «скачать» берут файлы с отдельного хоста, который кеширует `/uploads/music/` у основного сервера.
+Страницы и админка остаются на site.example.com. Плеер и кнопка «скачать» берут файлы с отдельного хоста, который кеширует `/uploads/music/` у основного сервера.
 
-## 1. config.php на catalog.beebzzz.ru
+## 1. config.php на site.example.com
 
 ```php
 // Внешний адрес для оцифровок, без слеша в конце. Убрать или '' — отдаёт сам каталог.
-const AUDIO_BASE_URL = 'https://cd1.beebzzz.ru';
+const AUDIO_BASE_URL = 'https://cdn.example.com';
 ```
 
 Что меняется:
 
-- Плеер: `https://cd1.beebzzz.ru/uploads/music/<папка>/<файл>?v=<версия>`.
+- Плеер: `https://cd1.example.com/uploads/music/<папка>/<файл>?v=<версия>`.
 - Скачать: та же ссылка с `&dl=1`. Заголовок `Content-Disposition: attachment` ставит cd1.
 - Старые ссылки `/download.php?track=ID` отвечают 302 на cd1. Ссылки, которые уже разосланы, продолжают работать.
 - `?v=` — это хеш от даты загрузки и размера. После замены файла ссылка меняется, и cd1 не отдаст старую копию из кеша.
 - Загрузка и удаление файлов, а также папки на диске остаются на основном сервере. В БД, как и раньше, хранится путь `/uploads/music/...`.
 
-## 2. Nginx на cd1.beebzzz.ru
+## 2. Nginx на cdn.example.com
 
 Нужен модуль `ngx_http_slice_module`, он есть в пакетах nginx для Ubuntu и Debian (проверка: `nginx -V 2>&1 | grep -o with-http_slice_module`). Файлы кешируются кусками по 8 МБ. Перемотка и докачка работают сразу, без ожидания, пока cd1 скачает весь FLAC целиком.
 
@@ -47,10 +47,10 @@ upstream music_backend {
 server {
     listen 443 ssl;
     http2 on;                      # для nginx < 1.25.1 (например, 1.18): listen 443 ssl http2;
-    server_name cd1.beebzzz.ru;
+    server_name cdn.examlpe.com;
 
-    ssl_certificate     /etc/letsencrypt/live/cd1.beebzzz.ru/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/cd1.beebzzz.ru/privkey.pem;
+    ssl_certificate     /etc/letsencrypt/live/cdn.example.com/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/cdn.example.com/privkey.pem;
 
     location /uploads/music/ {
         limit_except GET HEAD { deny all; }
@@ -67,17 +67,17 @@ server {
         proxy_hide_header Set-Cookie;
 
         proxy_http_version 1.1;
-        proxy_set_header Host catalog.beebzzz.ru;
+        proxy_set_header Host site.example.com;
         proxy_set_header Connection "";
         proxy_ssl_server_name on;
-        proxy_ssl_name catalog.beebzzz.ru;
+        proxy_ssl_name site.example.com;
         proxy_pass https://music_backend;          # отдельный upstream, см. ниже
         proxy_next_upstream error timeout http_502 http_503 http_504;
         proxy_next_upstream_tries 2;
 
         add_header Content-Disposition $music_disposition always;   # пустое значение не отправляется
         add_header Cache-Control "public, max-age=31536000, immutable" always;
-        add_header Access-Control-Allow-Origin "https://catalog.beebzzz.ru" always;
+        add_header Access-Control-Allow-Origin "https://site.example.com" always;
         add_header X-Content-Type-Options nosniff always;
         add_header X-Cache $upstream_cache_status always;
     }
@@ -87,7 +87,7 @@ server {
 
 server {
     listen 80;
-    server_name cd1.beebzzz.ru;
+    server_name cdn.example.com;
     return 301 https://$host$request_uri;
 }
 ```
@@ -101,8 +101,8 @@ nginx -t && systemctl reload nginx
 
 ## 3. DNS и сертификат
 
-- Запись A или CNAME для `cd1.beebzzz.ru`.
-- `certbot --nginx -d cd1.beebzzz.ru` (или `certonly --webroot`).
+- Запись A или CNAME для `cdn.example.com`.
+- `certbot --nginx -d cdn.example.com` (или `certonly --webroot`).
 
 ## 4. Необязательно: пускать к /uploads/music/ только cd1
 
@@ -117,7 +117,7 @@ Require ip <IP cd1>
 ## Проверка
 
 ```bash
-U='https://cd1.beebzzz.ru/uploads/music/<папка>/<файл>?v=test'
+U='https://cdn.example.com/uploads/music/<папка>/<файл>?v=test'
 curl -sI "$U" | grep -iE 'HTTP/|content-type|content-length|accept-ranges|x-cache'      # MISS, затем HIT
 curl -s -o /dev/null -D - -r 50000000-50000099 "$U" | grep -iE 'HTTP/|content-range'   # 206
 curl -sI "$U&dl=1" | grep -i content-disposition                                       # attachment; filename*=...
@@ -128,7 +128,7 @@ curl -sI "$U&dl=1" | grep -i content-disposition                                
 ## Что нужно учитывать
 
 - Если удалить файл в админке, его копия на cd1 остаётся в кеше до истечения `inactive` (60 дней), а старая ссылка продолжит работать. Чтобы убрать сразу, очистите кеш: `rm -rf /var/cache/nginx/music/*` (cd1 заново скачает файлы при следующих запросах). Можно и точечно, через `proxy_cache_purge` из модуля ngx_cache_purge.
-- Если убрать `AUDIO_BASE_URL` из конфига, всё снова будет отдаваться с catalog.beebzzz.ru, менять код не нужно.
+- Если убрать `AUDIO_BASE_URL` из конфига, всё снова будет отдаваться с site.example.com, менять код не нужно.
 
 ## Сервер по умолчанию
 
