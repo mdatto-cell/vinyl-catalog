@@ -6,13 +6,18 @@ require_once __DIR__ . '/../app/auth.php';
 require_once __DIR__ . '/../app/helpers.php';
 
 $error = '';
+$returnTo = safe_return_url($_POST['return'] ?? $_GET['return'] ?? '/');
+if (is_logged_in()) {
+    header('Location: ' . $returnTo);
+    exit;
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     verify_csrf();
     $username = trim($_POST['username'] ?? '');
     $password = $_POST['password'] ?? '';
 
     if (attempt_login($username, $password)) {
-        header('Location: ' . app_url('/'));
+        header('Location: ' . $returnTo);
         exit;
     }
 
@@ -25,6 +30,7 @@ page_head('Вход в каталог');
     <?php if ($error): ?><div class="error"><?= e($error) ?></div><?php endif; ?>
     <form method="post">
         <?= csrf_field() ?>
+        <input type="hidden" name="return" value="<?= e($returnTo) ?>">
         <div style="margin-bottom:16px;">
             <label>Логин</label>
             <input type="text" name="username" required>

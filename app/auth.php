@@ -17,10 +17,35 @@ function is_logged_in(): bool
 function require_login(): void
 {
     if (!is_logged_in()) {
-        header('Location: ' . app_url('/login.php'));
+        $back = ($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'GET' ? (string)($_SERVER['REQUEST_URI'] ?? '') : '';
+        header('Location: ' . login_url($back));
         exit;
     }
     if ($_SERVER['REQUEST_METHOD'] === 'POST') verify_csrf();
+}
+
+/**
+ * Адрес, куда вернуться после входа. Только локальный путь этого сайта:
+ * отбрасываем внешние адреса (https://..., //evil.com, /\evil.com) и сами login/logout.
+ */
+function safe_return_url(?string $url): string
+{
+    $url = trim((string)$url);
+    if ($url === '' || $url[0] !== '/' || str_starts_with($url, '//') || strpbrk($url, "\\\r\n") !== false) {
+        return '/';
+    }
+    $path = (string)parse_url($url, PHP_URL_PATH);
+    if (in_array($path, ['/login.php', '/logout.php'], true)) {
+        return '/';
+    }
+    return $url;
+}
+
+/** Ссылка на вход с возвратом на указанную (по умолчанию текущую) страницу. */
+function login_url(?string $returnTo = null): string
+{
+    $back = safe_return_url($returnTo ?? (string)($_SERVER['REQUEST_URI'] ?? '/'));
+    return '/login.php' . ($back === '/' ? '' : '?return=' . rawurlencode($back));
 }
 
 function attempt_login(string $username, string $password): bool

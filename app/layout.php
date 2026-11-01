@@ -7,7 +7,7 @@ const THEME_COOKIE = 'theme';
 /** Тема хранится в cookie, а не в адресе страницы. */
 function current_theme(): string
 {
-    return ($_COOKIE[THEME_COOKIE] ?? 'dark') === 'light' ? 'light' : 'dark';
+    return ($_COOKIE[THEME_COOKIE] ?? 'light') === 'light' ? 'light' : 'dark';
 }
 
 function remember_theme(string $theme): void
@@ -80,7 +80,7 @@ function page_head(string $title): void
             <a href="<?= e(app_url('/admin/discogs_search.php')) ?>">Discogs</a>
             <a href="<?= e(app_url('/logout.php')) ?>">Выход</a>
         <?php else: ?>
-            <a href="<?= e(app_url('/login.php')) ?>">Вход</a>
+            <a href="<?= e(function_exists('login_url') ? login_url() : '/login.php') ?>">Вход</a>
         <?php endif; ?>
         <button type="button" class="theme-toggle" data-theme-toggle aria-pressed="<?= current_theme() === 'light' ? 'true' : 'false' ?>" aria-label="Переключить светлую и тёмную тему"><?= current_theme() === 'light' ? 'Тёмная тема' : 'Светлая тема' ?></button>
     </nav>
