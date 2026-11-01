@@ -36,7 +36,7 @@
 ## Установка
 
 ```bash
-git clone https://github.com/<you>/vinyl-catalog.git /var/www/vinyl-catalog
+git clone https://github.com/mdatto-cell/vinyl-catalog.git /var/www/vinyl-catalog
 cd /var/www/vinyl-catalog
 
 # 1. Конфиг
